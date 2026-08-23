@@ -1,8 +1,13 @@
+//! [`MatrixOps`] backend implementation for [`oxiblas::prelude::Mat<f64>`].
+//!
+//! Enabled by the `oxiblas-backend` feature flag (enabled by default).
+
 use crate::traits::{MathError, MatrixOps};
 #[cfg(feature = "oxiblas-backend")]
 use oxiblas::prelude::*;
 
 #[cfg(feature = "oxiblas-backend")]
+
 impl MatrixOps for Mat<f64> {
     type Scalar = f64;
 

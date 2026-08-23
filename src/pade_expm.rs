@@ -1,5 +1,55 @@
 use crate::{MathError, MatrixOps, pade_coef::PADE_COEFFS};
 
+/// Computes the matrix exponential $e^A$ using a $[p/p]$ Padé approximant and scaling and squaring.
+///
+/// This generic function allows supplying custom coefficient arrays (e.g. for `f128`, `f32`, or custom scalar types).
+/// For standard `f64` computations with built-in coefficients, see [`pade_pp_f64`].
+///
+/// # Mathematical Method
+///
+/// The algorithm computes the matrix exponential in three main stages:
+/// 1. **Scaling**: Scales $A \leftarrow 2^{-s} A$ so that the matrix norm is small enough for accurate Padé approximation.
+/// 2. **Padé Approximation**: Evaluates matrix polynomials $U_p(A)$ and $V_p(A)$ using optimized
+///    Paterson-Stockmeyer / Horner evaluation schemes, then solves the matrix system:
+///    $$V_p(A) \cdot R_{p,p}(A) = U_p(A) \implies R_{p,p}(A) = [V_p(A)]^{-1} U_p(A)$$
+/// 3. **Squaring**: Repeatedly squares the result $s$ times:
+///    $$e^A = \left(R_{p,p}(2^{-s} A)\right)^{2^s}$$
+///
+/// # Coefficient Array Convention
+///
+/// The `coefficients` parameter expects an array of 13 slices indexed by `pol_deg - 1`.
+/// Each slice contains $[c_2, c_3, \dots, c_p]$ (omitting the first two implicit coefficients $c_0 = 1$ and $c_1 = 0.5$,
+/// which are structurally embedded in the base matrix initialization).
+///
+/// # Arguments
+///
+/// * `A` - Mutable reference to the square matrix $A$. Note that $A$ is scaled in-place and use as scratch memory during computation.
+/// * `pol_deg` - Degree of the Padé approximant. Currently supported degrees are **3, 4, 5, 6, 7, 9, 13**.
+/// * `s` - Non-negative integer scaling factor ($2^s$).
+/// * `coefficients` - Array of slices containing Padé coefficients for each degree.
+///
+/// # Errors
+///
+/// Returns [`MathError::NotSquare`] if $A$ is not square.
+/// Returns [`MathError::InvalidPolDeg`] if `pol_deg` is not one of $\{3, 4, 5, 6, 7, 9, 13\}$.
+/// Returns [`MathError::SingularMatrix`] if matrix $V_p(A)$ is singular during the linear solve.
+///
+/// # Example
+///
+/// ```rust
+/// # #[cfg(feature = "oxiblas-backend")]
+/// # {
+/// use expm_rust::{pade_pp, pade_coef::PADE_COEFFS};
+/// use oxiblas::prelude::*;
+///
+/// // Create a 2x2 zero matrix; exp(0) = I
+/// let mut a = MatBuilder::<f64>::zeros(2, 2);
+/// let exp_a = pade_pp(&mut a, 6, 0, &PADE_COEFFS).unwrap();
+///
+/// assert!((exp_a[(0, 0)] - 1.0).abs() < 1e-15);
+/// assert!((exp_a[(1, 1)] - 1.0).abs() < 1e-15);
+/// # }
+/// ```
 #[allow(non_snake_case)]
 pub fn pade_pp<M, C>(
     A: &mut M,
@@ -196,6 +246,37 @@ where
     Ok(u)
 }
 
+/// Computes the matrix exponential $e^A$ for `f64` scalar matrix types using standard precomputed Padé coefficients.
+///
+/// This is a convenience wrapper around [`pade_pp`] using [`PADE_COEFFS`].
+///
+/// # Arguments
+///
+/// * `A` - Mutable reference to the square matrix $A$. Note that $A$ is scaled in-place.
+/// * `pol_deg` - Degree of the Padé approximant. Must be one of $\{3, 4, 5, 6, 7, 9, 13\}$.
+/// * `s` - Non-negative integer scaling factor ($2^s$).
+///
+/// # Errors
+///
+/// Returns [`MathError`] if dimensions are invalid or the matrix is singular.
+///
+/// # Example
+///
+/// ```rust
+/// # #[cfg(feature = "oxiblas-backend")]
+/// # {
+/// use expm_rust::pade_pp_f64;
+/// use oxiblas::prelude::*;
+///
+/// // Create a 2x2 identity matrix; exp(I) = diag(e, e)
+/// let mut a = MatBuilder::<f64>::identity(2);
+/// let exp_a = pade_pp_f64(&mut a, 13, 1).unwrap();
+///
+/// let e = std::f64::consts::E;
+/// assert!((exp_a[(0, 0)] - e).abs() < 1e-14);
+/// assert!((exp_a[(1, 1)] - e).abs() < 1e-14);
+/// # }
+/// ```
 #[inline(always)]
 #[allow(non_snake_case)]
 pub fn pade_pp_f64<M>(A: &mut M, pol_deg: usize, s: u32) -> Result<M, MathError>
@@ -206,7 +287,7 @@ where
     pade_pp(A, pol_deg, s, &PADE_COEFFS)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oxiblas-backend"))]
 mod tests {
     use std::f64;
 

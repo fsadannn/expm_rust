@@ -2,14 +2,21 @@
 name = "expm_rust"
 version = "0.1.0"
 edition = "2024"
+description = "Generic Padé approximation with scaling and squaring for matrix exponential computation"
+documentation = "https://docs.rs/expm_rust"
+readme = "README.md"
+homepage = "https://github.com/fsadannn/expm_rust"
+repository = "https://github.com/fsadannn/expm_rust"
 license = "BSD-3-Clause OR Apache-2.0"
+keywords = ["linear-algebra", "matrix-exponential", "numerics", "pade", "scipy"]
+categories = ["algorithms", "mathematics", "science"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 oxiblas = { version = "0.2", features = ["max-simd-256"], optional = true }
-
-[dev-dependencies]
-oxiblas = { version = "0.2", features = ["max-simd-256"] }
-
 
 [features]
 default = ["oxiblas-backend"]
