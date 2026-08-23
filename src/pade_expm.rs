@@ -1,10 +1,16 @@
 use crate::{MathError, MatrixOps, pade_coef::PADE_COEFFS};
 
 #[allow(non_snake_case)]
-pub fn pade_pp<M>(A: &mut M, pol_deg: usize, s: u32) -> Result<M, MathError>
+pub fn pade_pp<M, C>(
+    A: &mut M,
+    pol_deg: usize,
+    s: u32,
+    coefficients: &[&[C]; 13],
+) -> Result<M, MathError>
 where
-    M: MatrixOps + std::fmt::Debug,
-    M::Scalar: From<f64>,
+    M: MatrixOps,
+    C: Copy,
+    M::Scalar: From<C> + From<f64>,
 {
     let (row, col) = A.shape();
     if row != col {
@@ -16,7 +22,7 @@ where
     if pol_deg < 3 || pol_deg > 13 {
         return Err(MathError::InvalidPolDeg(pol_deg));
     }
-    let coef = PADE_COEFFS[pol_deg - 1];
+    let coef = coefficients[pol_deg - 1];
     if coef.is_empty() {
         return Err(MathError::InvalidPolDeg(pol_deg));
     }
@@ -173,10 +179,8 @@ where
             todo!("not implemented yet")
         }
     }
-    // println!("u: {:?}", u);
-    // println!("v: {:?}", v);
+
     v.solve_in_place(&mut u)?;
-    // println!("u: {:?}", u);
 
     let scale_it = s / 2;
     for _k in 0..scale_it {
@@ -189,16 +193,18 @@ where
         u.copy_from(&v);
     }
 
-    // if s > 0 {
-    //     println!("u scaled: {:?}", u);
-    // }
-
     Ok(u)
 }
 
-#[cfg(test)]
-#[cfg(not(feature = "oxiblas-backend"))]
-compile_error!("Tests must be run with `--features oxiblas-backend`.");
+#[inline(always)]
+#[allow(non_snake_case)]
+pub fn pade_pp_f64<M>(A: &mut M, pol_deg: usize, s: u32) -> Result<M, MathError>
+where
+    M: MatrixOps,
+    M::Scalar: From<f64>,
+{
+    pade_pp(A, pol_deg, s, &PADE_COEFFS)
+}
 
 #[cfg(test)]
 mod tests {
@@ -207,6 +213,7 @@ mod tests {
     use super::*;
     use oxiblas::prelude::*;
 
+    /// utils functions for the test
     #[inline]
     pub fn frexp(x: f64) -> (f64, i32) {
         let mut y = x.to_bits();
@@ -246,7 +253,7 @@ mod tests {
     }
 
     const POL_DEG: [usize; 7] = [3, 4, 5, 6, 7, 9, 13];
-
+    /// test functions
     #[test]
     fn test_zero() {
         let a = MatBuilder::<f64>::zeros(2, 2);
@@ -254,12 +261,12 @@ mod tests {
 
         for &deg in POL_DEG.iter() {
             let mut mat = a.clone();
-            let _res = pade_pp::<Mat<f64>>(&mut mat, deg, 0);
+            let _res = pade_pp_f64(&mut mat, deg, 0);
             assert!(_res.is_ok());
             let res = _res.unwrap();
-            println!("deg: {deg}");
-            println!("tol: {}", 1e-16);
-            println!("err: {}", err(&res, &sol));
+            // println!("deg: {deg}");
+            // println!("tol: {}", 1e-16);
+            // println!("err: {}", err(&res, &sol));
             assert!(err(&res, &sol) < 1e-16f64);
         }
     }
@@ -277,12 +284,12 @@ mod tests {
 
         for (&deg, &tol) in POL_DEG.iter().zip(TOLERANCE.iter()) {
             let mut mat = a.clone();
-            let _res = pade_pp::<Mat<f64>>(&mut mat, deg, s);
+            let _res = pade_pp_f64(&mut mat, deg, s);
             assert!(_res.is_ok());
             let res = _res.unwrap();
-            println!("deg: {deg}");
-            println!("tol: {tol}");
-            println!("err: {}", err(&res, &sol));
+            // println!("deg: {deg}");
+            // println!("tol: {tol}");
+            // println!("err: {}", err(&res, &sol));
             assert!(err(&res, &sol) < tol);
         }
     }
@@ -312,12 +319,13 @@ mod tests {
 
         for (&deg, &tol) in POL_DEG.iter().zip(TOLERANCE.iter()) {
             let mut mat = a.clone();
-            let _res = pade_pp::<Mat<f64>>(&mut mat, deg, s);
+            let _res = pade_pp_f64(&mut mat, deg, s);
+
             assert!(_res.is_ok());
             let res = _res.unwrap();
-            println!("deg: {deg}");
-            println!("tol: {tol}");
-            println!("err: {}", err(&res, &sol));
+            // println!("deg: {deg}");
+            // println!("tol: {tol}");
+            // println!("err: {}", err(&res, &sol));
             assert!(err(&res, &sol) < tol);
         }
     }
