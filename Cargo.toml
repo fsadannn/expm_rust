@@ -1,6 +1,6 @@
 [package]
 name = "expm_rust"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "Generic Padé approximation with scaling and squaring for matrix exponential computation"
 documentation = "https://docs.rs/expm_rust"
@@ -13,7 +13,7 @@ categories = ["algorithms", "mathematics", "science"]
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "./src/docs-header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "./docs-header.html"]
 
 [dependencies]
 oxiblas = { version = "0.2", features = ["max-simd-256"], optional = true }
