@@ -126,7 +126,7 @@ const fn rational_arr_to_f64<const LEN: usize>(r: [Rational; LEN]) -> [f64; LEN]
 }
 
 // Precompute the individual static coefficient arrays at compile time.
-// We only compute active orders: 3..=6 and 7, 9, 11, 13.
+// We only compute active orders: 3..=6 and 7, 9, 13.
 // We store P - 1 elements, skipping a_0 (1.0) and a_1 (0.5).
 const PADE_3: [f64; 2] = rational_arr_to_f64::<2>(compute_pade_array::<3, 2>());
 const PADE_4: [f64; 3] = rational_arr_to_f64::<3>(compute_pade_array::<4, 3>());
@@ -134,7 +134,6 @@ const PADE_5: [f64; 4] = rational_arr_to_f64::<4>(compute_pade_array::<5, 4>());
 const PADE_6: [f64; 5] = rational_arr_to_f64::<5>(compute_pade_array::<6, 5>());
 const PADE_7: [f64; 6] = rational_arr_to_f64::<6>(compute_pade_array::<7, 6>());
 const PADE_9: [f64; 8] = rational_arr_to_f64::<8>(compute_pade_array::<9, 8>());
-const PADE_11: [f64; 10] = rational_arr_to_f64::<10>(compute_pade_array::<11, 10>());
 const PADE_13: [f64; 12] = rational_arr_to_f64::<12>(compute_pade_array::<13, 12>());
 
 /// Array of 13 static slices mapping degree m (for m = 1..=13) to its Padé coefficients.
@@ -152,7 +151,7 @@ pub static PADE_COEFFS: [&'static [f64]; 13] = [
     &[],      // m = 8  (skipped)
     &PADE_9,  // m = 9
     &[],      // m = 10 (skipped)
-    &PADE_11, // m = 11
+    &[],      // m = 11 (skipped)
     &[],      // m = 12 (skipped)
     &PADE_13, // m = 13
 ];

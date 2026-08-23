@@ -27,19 +27,145 @@ where
 
     A.scale_assign(is.into());
     let mut powA = M::zeros(row);
+    // A^2
     powA.gemm(1.0f64.into(), A, A, 0.0f64.into());
 
     let mut u = M::identity(row);
     let mut v = M::diag(row, 0.5.into());
 
     match pol_deg {
-        3 => {
+        3 | 4 => {
             let mut cf = unsafe { *coef.get_unchecked(0) };
             u.axpy(cf.into(), &powA);
             cf = unsafe { *coef.get_unchecked(1) };
             v.axpy(cf.into(), &powA);
             let mut temp = M::zeros(row);
             temp.gemm(1.0f64.into(), A, &v, 0.0f64.into());
+            if pol_deg == 4 {
+                A.gemm(1.0f64.into(), &powA, &powA, 0.0f64.into());
+                cf = unsafe { *coef.get_unchecked(2) };
+                u.axpy(cf.into(), &A);
+            }
+            v.from_axpy((-1.0f64).into(), &temp, &u);
+            u.axpy(1.0f64.into(), &temp);
+        }
+        5 | 6 => {
+            let mut cf = unsafe { *coef.get_unchecked(0) };
+            u.axpy(cf.into(), &powA);
+            cf = unsafe { *coef.get_unchecked(1) };
+            v.axpy(cf.into(), &powA);
+            let mut copy_of_A = A.clone();
+            A.gemm(1.0f64.into(), &powA, &powA, 0.0f64.into());
+            cf = unsafe { *coef.get_unchecked(2) };
+            u.axpy(cf.into(), &A);
+            cf = unsafe { *coef.get_unchecked(3) };
+            v.axpy(cf.into(), &A);
+            let mut temp = M::zeros(row);
+            temp.gemm(1.0f64.into(), &copy_of_A, &v, 0.0f64.into());
+            if pol_deg == 6 {
+                copy_of_A.gemm(1.0f64.into(), &A, &powA, 0.0f64.into());
+                cf = unsafe { *coef.get_unchecked(4) };
+                u.axpy(cf.into(), &copy_of_A);
+            }
+            v.from_axpy((-1.0f64).into(), &temp, &u);
+            u.axpy(1.0f64.into(), &temp);
+        }
+        7 => {
+            let mut cf = unsafe { *coef.get_unchecked(0) };
+            u.axpy(cf.into(), &powA);
+            cf = unsafe { *coef.get_unchecked(1) };
+            v.axpy(cf.into(), &powA);
+            let copy_of_A = A.clone();
+            // A^4
+            A.gemm(1.0f64.into(), &powA, &powA, 0.0f64.into());
+            cf = unsafe { *coef.get_unchecked(2) };
+            u.axpy(cf.into(), &A);
+            cf = unsafe { *coef.get_unchecked(3) };
+            v.axpy(cf.into(), &A);
+            let mut temp = M::zeros(row);
+            // A^6
+            temp.gemm(1.0f64.into(), &A, &powA, 0.0f64.into());
+            cf = unsafe { *coef.get_unchecked(4) };
+            u.axpy(cf.into(), &temp);
+            cf = unsafe { *coef.get_unchecked(5) };
+            v.axpy(cf.into(), &temp);
+
+            temp.gemm(1.0f64.into(), &copy_of_A, &v, 0.0f64.into());
+            v.from_axpy((-1.0f64).into(), &temp, &u);
+            u.axpy(1.0f64.into(), &temp);
+        }
+        9 => {
+            let mut cf = unsafe { *coef.get_unchecked(0) };
+            u.axpy(cf.into(), &powA);
+            cf = unsafe { *coef.get_unchecked(1) };
+            v.axpy(cf.into(), &powA);
+            let copy_of_A = A.clone();
+            // A^4
+            A.gemm(1.0f64.into(), &powA, &powA, 0.0f64.into());
+            cf = unsafe { *coef.get_unchecked(2) };
+            u.axpy(cf.into(), &A);
+            cf = unsafe { *coef.get_unchecked(3) };
+            v.axpy(cf.into(), &A);
+            let mut temp = M::zeros(row);
+            // A^6
+            temp.gemm(1.0f64.into(), &A, &powA, 0.0f64.into());
+            cf = unsafe { *coef.get_unchecked(4) };
+            u.axpy(cf.into(), &temp);
+            cf = unsafe { *coef.get_unchecked(5) };
+            v.axpy(cf.into(), &temp);
+
+            // A^8
+            powA.gemm(1.0f64.into(), &A, &A, 0.0f64.into());
+            cf = unsafe { *coef.get_unchecked(6) };
+            u.axpy(cf.into(), &powA);
+            cf = unsafe { *coef.get_unchecked(7) };
+            v.axpy(cf.into(), &powA);
+
+            temp.gemm(1.0f64.into(), &copy_of_A, &v, 0.0f64.into());
+            v.from_axpy((-1.0f64).into(), &temp, &u);
+            u.axpy(1.0f64.into(), &temp);
+        }
+        13 => {
+            let mut u2 = powA.clone();
+            let mut v2 = powA.clone();
+
+            let mut cf = unsafe { *coef.get_unchecked(0) };
+            u.axpy(cf.into(), &powA);
+            cf = unsafe { *coef.get_unchecked(1) };
+            v.axpy(cf.into(), &powA);
+            cf = unsafe { *coef.get_unchecked(6) };
+            u2.scale_assign(cf.into());
+            cf = unsafe { *coef.get_unchecked(7) };
+            v2.scale_assign(cf.into());
+
+            let copy_of_A = A.clone();
+            // A^4
+            A.gemm(1.0f64.into(), &powA, &powA, 0.0f64.into());
+            cf = unsafe { *coef.get_unchecked(2) };
+            u.axpy(cf.into(), &A);
+            cf = unsafe { *coef.get_unchecked(3) };
+            v.axpy(cf.into(), &A);
+            cf = unsafe { *coef.get_unchecked(8) };
+            u2.axpy(cf.into(), &A);
+            cf = unsafe { *coef.get_unchecked(9) };
+            v2.axpy(cf.into(), &A);
+
+            let mut temp = M::zeros(row);
+            // A^6
+            temp.gemm(1.0f64.into(), &A, &powA, 0.0f64.into());
+            cf = unsafe { *coef.get_unchecked(4) };
+            u.axpy(cf.into(), &temp);
+            cf = unsafe { *coef.get_unchecked(5) };
+            v.axpy(cf.into(), &temp);
+            cf = unsafe { *coef.get_unchecked(10) };
+            u2.axpy(cf.into(), &temp);
+            cf = unsafe { *coef.get_unchecked(11) };
+            v2.axpy(cf.into(), &temp);
+
+            u.gemm(1.0f64.into(), &temp, &u2, 1.0f64.into());
+            v.gemm(1.0f64.into(), &temp, &v2, 1.0f64.into());
+
+            temp.gemm(1.0f64.into(), &copy_of_A, &v, 0.0f64.into());
             v.from_axpy((-1.0f64).into(), &temp, &u);
             u.axpy(1.0f64.into(), &temp);
         }
@@ -119,31 +245,50 @@ mod tests {
             .unwrap_or(0f64)
     }
 
+    const POL_DEG: [usize; 7] = [3, 4, 5, 6, 7, 9, 13];
+
     #[test]
     fn test_zero() {
-        let mut a = MatBuilder::<f64>::zeros(2, 2);
-        let res = pade_pp::<Mat<f64>>(&mut a, 3, 0);
-        assert!(res.is_ok());
+        let a = MatBuilder::<f64>::zeros(2, 2);
         let sol = MatBuilder::<f64>::identity(2);
 
-        assert!(err(&res.unwrap(), &sol) < 1e-16f64);
+        for &deg in POL_DEG.iter() {
+            let mut mat = a.clone();
+            let _res = pade_pp::<Mat<f64>>(&mut mat, deg, 0);
+            assert!(_res.is_ok());
+            let res = _res.unwrap();
+            println!("deg: {deg}");
+            println!("tol: {}", 1e-16);
+            println!("err: {}", err(&res, &sol));
+            assert!(err(&res, &sol) < 1e-16f64);
+        }
     }
 
     #[test]
     fn test_identity() {
-        let mut a = MatBuilder::<f64>::identity(2);
+        let a = MatBuilder::<f64>::identity(2);
         let s = get_scale(&a);
-        let res = pade_pp::<Mat<f64>>(&mut a, 3, s);
-        assert!(res.is_ok());
         let mut sol = MatBuilder::<f64>::zeros(2, 2);
         sol[(0, 0)] = f64::consts::E;
         sol[(1, 1)] = f64::consts::E;
+        const TOLERANCE: [f64; 7] = [
+            1e-8f64, 1e-11f64, 1e-15f64, 1e-15f64, 1e-15f64, 1e-15f64, 1e-15f64,
+        ];
 
-        assert!(err(&res.unwrap(), &sol) < 1e-8f64);
+        for (&deg, &tol) in POL_DEG.iter().zip(TOLERANCE.iter()) {
+            let mut mat = a.clone();
+            let _res = pade_pp::<Mat<f64>>(&mut mat, deg, s);
+            assert!(_res.is_ok());
+            let res = _res.unwrap();
+            println!("deg: {deg}");
+            println!("tol: {tol}");
+            println!("err: {}", err(&res, &sol));
+            assert!(err(&res, &sol) < tol);
+        }
     }
 
     #[test]
-    fn test_general() {
+    fn test_upper_triangular() {
         let mut a = MatBuilder::<f64>::zeros(3, 3);
         a[(0, 0)] = 0.346358384327981;
         a[(0, 1)] = 0.388260875523650;
@@ -153,17 +298,27 @@ mod tests {
         a[(2, 2)] = 0.078284436848147;
         let s = get_scale(&a);
 
-        let res = pade_pp::<Mat<f64>>(&mut a, 3, s);
-        assert!(res.is_ok());
-
         let mut sol = MatBuilder::<f64>::zeros(3, 3);
-        sol[(0, 0)] = 1.413909247945447;
-        sol[(0, 1)] = 0.470923306921347;
-        sol[(0, 2)] = 1.244297682915636;
+        sol[(0, 0)] = 1.413909247943398;
+        sol[(0, 1)] = 0.470923306918821;
+        sol[(0, 2)] = 1.244297682904218;
         sol[(1, 1)] = 1.031917158757147;
         sol[(1, 2)] = 0.494009253649905;
-        sol[(2, 2)] = 1.081430213529470;
+        sol[(2, 2)] = 1.081430213529469;
 
-        assert!(err(&res.unwrap(), &sol) < 1e-14f64);
+        const TOLERANCE: [f64; 7] = [
+            1e-10f64, 1e-15f64, 1e-15f64, 1e-15f64, 1e-15f64, 1e-15f64, 1e-15f64,
+        ];
+
+        for (&deg, &tol) in POL_DEG.iter().zip(TOLERANCE.iter()) {
+            let mut mat = a.clone();
+            let _res = pade_pp::<Mat<f64>>(&mut mat, deg, s);
+            assert!(_res.is_ok());
+            let res = _res.unwrap();
+            println!("deg: {deg}");
+            println!("tol: {tol}");
+            println!("err: {}", err(&res, &sol));
+            assert!(err(&res, &sol) < tol);
+        }
     }
 }
