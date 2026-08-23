@@ -1,0 +1,23 @@
+[package]
+name = "expm_rust"
+version = "0.1.0"
+edition = "2024"
+license = "BSD-3-Clause OR Apache-2.0"
+
+[dependencies]
+oxiblas = { version = "0.2", features = ["max-simd-256"], optional = true }
+
+[features]
+default = ["oxiblas-backend"]
+oxiblas-backend = ["dep:oxiblas"]
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.test]
+debug = "line-tables-only"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+panic = "abort"
