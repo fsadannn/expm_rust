@@ -59,12 +59,6 @@ impl MatrixOps for CustomMat2x2 {
         }
     }
 
-    fn from_axpy(&mut self, alpha: f64, x: &Self, y: &Self) {
-        for (res, (&xi, &yi)) in self.data.iter_mut().zip(x.data.iter().zip(y.data.iter())) {
-            *res = alpha * xi + yi;
-        }
-    }
-
     fn gemm(&mut self, alpha: f64, a: &Self, b: &Self, beta: f64) {
         let (a00, a01, a10, a11) = (a.data[0], a.data[1], a.data[2], a.data[3]);
         let (b00, b01, b10, b11) = (b.data[0], b.data[1], b.data[2], b.data[3]);

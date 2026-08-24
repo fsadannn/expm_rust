@@ -132,7 +132,10 @@ pub trait MatrixOps: Sized + Clone {
     /// * `alpha` - Scalar multiplier for $X$.
     /// * `x` - Matrix $X$.
     /// * `y` - Matrix $Y$.
-    fn from_axpy(&mut self, alpha: Self::Scalar, x: &Self, y: &Self);
+    fn from_axpy(&mut self, alpha: Self::Scalar, x: &Self, y: &Self) {
+        self.copy_from(y);
+        self.axpy(alpha, x);
+    }
 
     /// General Matrix Multiplication (GEMM):
     ///
@@ -165,4 +168,3 @@ pub trait MatrixOps: Sized + Clone {
     /// * `x` - Source matrix to copy from.
     fn copy_from(&mut self, x: &Self);
 }
-

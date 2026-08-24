@@ -61,21 +61,6 @@ impl MatrixOps for Mat<f64> {
     }
 
     #[inline]
-    fn from_axpy(&mut self, alpha: Self::Scalar, x: &Self, y: &Self) {
-        debug_assert_eq!(
-            self.shape(),
-            x.shape(),
-            "{}",
-            MathError::DimensionMismatch {
-                expected: self.shape(),
-                found: x.shape(),
-            }
-        );
-        copy(y.raw_data(), self.raw_data_mut());
-        axpy(alpha, x.raw_data(), self.raw_data_mut());
-    }
-
-    #[inline]
     fn gemm(&mut self, alpha: Self::Scalar, a: &Self, b: &Self, beta: Self::Scalar) {
         let (m, _) = a.shape();
         let (_, n) = b.shape();
