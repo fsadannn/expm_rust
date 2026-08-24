@@ -1,6 +1,6 @@
 [package]
 name = "expm_rust"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 description = "Generic Padé approximation with scaling and squaring for matrix exponential computation"
 documentation = "https://docs.rs/expm_rust"
