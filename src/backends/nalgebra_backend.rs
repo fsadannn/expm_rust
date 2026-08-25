@@ -1,45 +1,45 @@
-//! [`MatrixOps`] backend implementation for [`oxiblas::prelude::Mat<f64>`].
+//! [`MatrixOps`] backend implementation for [`nalgebra`].
 //!
-//! Enabled by the `oxiblas-backend` feature flag.
+//! Enabled by the `nalgebra-backend` feature flag.
 
 use crate::traits::{MathError, MatrixOps};
-use oxiblas::prelude::*;
+use nalgebra::{DefaultAllocator, Dim, DimMin, OMatrix, allocator::Allocator};
 
-impl MatrixOps for Mat<f64> {
+impl<D> MatrixOps for OMatrix<f64, D, D>
+where
+    D: Dim + DimMin<D, Output = D>,
+    DefaultAllocator: Allocator<D, D> + Allocator<D>,
+{
     type Scalar = f64;
 
     #[inline]
     fn copy_from(&mut self, x: &Self) {
-        copy(x.raw_data(), self.raw_data_mut());
+        Self::copy_from(self, x);
     }
 
     #[inline]
     fn shape(&self) -> (usize, usize) {
-        (self.nrows(), self.ncols())
+        Self::shape(&self)
     }
 
     #[inline]
     fn identity(size: usize) -> Self {
-        MatBuilder::identity(size)
+        Self::identity_generic(D::from_usize(size), D::from_usize(size))
     }
 
     #[inline]
     fn zeros(size: usize) -> Self {
-        MatBuilder::zeros(size, size)
+        Self::zeros_generic(D::from_usize(size), D::from_usize(size))
     }
 
     #[inline]
     fn diag(size: usize, val: Self::Scalar) -> Self {
-        let mut m = MatBuilder::zeros(size, size);
-        for i in 0..size {
-            m[(i, i)] = val;
-        }
-        m
+        Self::from_diagonal_element_generic(D::from_usize(size), D::from_usize(size), val)
     }
 
     #[inline]
     fn scale_assign(&mut self, alpha: Self::Scalar) {
-        scal(alpha, self.raw_data_mut());
+        self.scale_mut(alpha);
     }
 
     #[inline]
@@ -54,7 +54,9 @@ impl MatrixOps for Mat<f64> {
             }
         );
 
-        axpy(alpha, x.raw_data(), self.raw_data_mut());
+        for (s_val, x_val) in self.iter_mut().zip(x.iter()) {
+            *s_val += alpha * x_val;
+        }
     }
 
     #[inline]
@@ -81,7 +83,7 @@ impl MatrixOps for Mat<f64> {
             }
         );
 
-        gemm(alpha, a.as_ref(), b.as_ref(), beta, self.as_mut());
+        OMatrix::gemm(self, alpha, a, b, beta);
     }
 
     #[inline]
@@ -94,13 +96,16 @@ impl MatrixOps for Mat<f64> {
             });
         }
 
-        let lu = Lu::compute(self.as_ref()).map_err(|_| MathError::SingularMatrix)?;
-
-        let x_sol = lu
-            .solve(b.as_ref())
-            .map_err(|_| MathError::SingularMatrix)?;
-
-        b.as_mut().copy_from(&x_sol.as_ref());
-        Ok(())
+        // `.lu()` consumes the matrix, so we `.clone()` our `&self` reference.
+        // It computes the LU decomposition with partial pivoting.
+        // `.solve_mut(b)` applies the result directly into `b` with zero extra allocations.
+        if self.clone().lu().solve_mut(b) {
+            return Ok(());
+        }
+        // Matrix is singular / not invertible
+        Err(MathError::DimensionMismatch {
+            expected: self.shape(),
+            found: (0, 0), // Note: Consider adding a SingularMatrix variant to MathError
+        })
     }
 }

@@ -226,7 +226,7 @@ where
             u.axpy(1.0f64.into(), &temp);
         }
         _ => {
-            todo!("not implemented yet")
+            return Err(MathError::InvalidPolDeg(pol_deg));
         }
     }
 
@@ -287,11 +287,16 @@ where
     pade_pp(A, pol_deg, s, &PADE_COEFFS)
 }
 
-#[cfg(all(test, feature = "oxiblas-backend"))]
+#[cfg(test)]
 mod tests {
     use std::f64;
 
     use super::*;
+    #[cfg(feature = "nalgebra-backend")]
+    use nalgebra::{
+        DefaultAllocator, Dim, Matrix2, Matrix3, OMatrix, UniformNorm, allocator::Allocator,
+    };
+    #[cfg(feature = "oxiblas-backend")]
     use oxiblas::prelude::*;
 
     /// utils functions for the test
@@ -317,14 +322,41 @@ mod tests {
         (f64::from_bits(y), e)
     }
 
-    fn get_scale(a: &Mat<f64>) -> u32 {
+    #[cfg(feature = "nalgebra-backend")]
+    fn get_scale_na<D>(a: &OMatrix<f64, D, D>) -> u32
+    where
+        D: Dim,
+        DefaultAllocator: Allocator<D, D>,
+    {
+        let norm_a = a.apply_norm(&UniformNorm);
+        let (_, e) = frexp(norm_a);
+        let s: u32 = std::cmp::max(0, e + 1).try_into().unwrap();
+        s
+    }
+
+    #[cfg(feature = "nalgebra-backend")]
+    fn err_na<D>(a: &OMatrix<f64, D, D>, b: &OMatrix<f64, D, D>) -> f64
+    where
+        D: Dim,
+        DefaultAllocator: Allocator<D, D>,
+    {
+        a.iter()
+            .zip(b.iter())
+            .map(|(a, b)| (*a - *b).abs())
+            .reduce(f64::max)
+            .unwrap_or(0f64)
+    }
+
+    #[cfg(feature = "oxiblas-backend")]
+    fn get_scale_ox(a: &Mat<f64>) -> u32 {
         let norm_a = norm_inf(a.as_ref());
         let (_, e) = frexp(norm_a);
         let s: u32 = std::cmp::max(0, e + 1).try_into().unwrap();
         s
     }
 
-    fn err(a: &Mat<f64>, b: &Mat<f64>) -> f64 {
+    #[cfg(feature = "oxiblas-backend")]
+    fn err_ox(a: &Mat<f64>, b: &Mat<f64>) -> f64 {
         a.raw_data()
             .iter()
             .zip(b.raw_data().iter())
@@ -335,8 +367,10 @@ mod tests {
 
     const POL_DEG: [usize; 7] = [3, 4, 5, 6, 7, 9, 13];
     /// test functions
+
     #[test]
-    fn test_zero() {
+    #[cfg(feature = "oxiblas-backend")]
+    fn test_zero_ox() {
         let a = MatBuilder::<f64>::zeros(2, 2);
         let sol = MatBuilder::<f64>::identity(2);
 
@@ -347,15 +381,34 @@ mod tests {
             let res = _res.unwrap();
             // println!("deg: {deg}");
             // println!("tol: {}", 1e-16);
-            // println!("err: {}", err(&res, &sol));
-            assert!(err(&res, &sol) < 1e-16f64);
+            // println!("err: {}", err_ox(&res, &sol));
+            assert!(err_ox(&res, &sol) < 1e-16f64);
         }
     }
 
     #[test]
-    fn test_identity() {
+    #[cfg(feature = "nalgebra-backend")]
+    fn test_zero_na() {
+        let a = Matrix2::<f64>::zeros();
+        let sol = Matrix2::<f64>::identity();
+
+        for &deg in POL_DEG.iter() {
+            let mut mat = a.clone();
+            let _res = pade_pp_f64(&mut mat, deg, 0);
+            assert!(_res.is_ok());
+            let res = _res.unwrap();
+            // println!("deg: {deg}");
+            // println!("tol: {}", 1e-16);
+            // println!("err: {}", err_na(&res, &sol));
+            assert!(err_na(&res, &sol) < 1e-16f64);
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "oxiblas-backend")]
+    fn test_identity_ox() {
         let a = MatBuilder::<f64>::identity(2);
-        let s = get_scale(&a);
+        let s = get_scale_ox(&a);
         let mut sol = MatBuilder::<f64>::zeros(2, 2);
         sol[(0, 0)] = f64::consts::E;
         sol[(1, 1)] = f64::consts::E;
@@ -370,13 +423,38 @@ mod tests {
             let res = _res.unwrap();
             // println!("deg: {deg}");
             // println!("tol: {tol}");
-            // println!("err: {}", err(&res, &sol));
-            assert!(err(&res, &sol) < tol);
+            // println!("err: {}", err_ox(&res, &sol));
+            assert!(err_ox(&res, &sol) < tol);
         }
     }
 
     #[test]
-    fn test_upper_triangular() {
+    #[cfg(feature = "nalgebra-backend")]
+    fn test_identity_na() {
+        let a = Matrix2::<f64>::identity();
+        let s = get_scale_na(&a);
+        let mut sol = Matrix2::<f64>::zeros();
+        sol[(0, 0)] = f64::consts::E;
+        sol[(1, 1)] = f64::consts::E;
+        const TOLERANCE: [f64; 7] = [
+            1e-8f64, 1e-11f64, 1e-15f64, 1e-15f64, 1e-15f64, 1e-15f64, 1e-15f64,
+        ];
+
+        for (&deg, &tol) in POL_DEG.iter().zip(TOLERANCE.iter()) {
+            let mut mat = a.clone();
+            let _res = pade_pp_f64(&mut mat, deg, s);
+            assert!(_res.is_ok());
+            let res = _res.unwrap();
+            // println!("deg: {deg}");
+            // println!("tol: {tol}");
+            // println!("err: {}", err_na(&res, &sol));
+            assert!(err_na(&res, &sol) < tol);
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "oxiblas-backend")]
+    fn test_upper_triangular_ox() {
         let mut a = MatBuilder::<f64>::zeros(3, 3);
         a[(0, 0)] = 0.346358384327981;
         a[(0, 1)] = 0.388260875523650;
@@ -384,7 +462,7 @@ mod tests {
         a[(1, 1)] = 0.031418391315215;
         a[(1, 2)] = 0.467599106573163;
         a[(2, 2)] = 0.078284436848147;
-        let s = get_scale(&a);
+        let s = get_scale_ox(&a);
 
         let mut sol = MatBuilder::<f64>::zeros(3, 3);
         sol[(0, 0)] = 1.413909247943398;
@@ -406,8 +484,131 @@ mod tests {
             let res = _res.unwrap();
             // println!("deg: {deg}");
             // println!("tol: {tol}");
-            // println!("err: {}", err(&res, &sol));
-            assert!(err(&res, &sol) < tol);
+            // println!("err: {}", err_ox(&res, &sol));
+            assert!(err_ox(&res, &sol) < tol);
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "nalgebra-backend")]
+    fn test_upper_triangular_na() {
+        let mut a = Matrix3::<f64>::zeros();
+        a[(0, 0)] = 0.346358384327981;
+        a[(0, 1)] = 0.388260875523650;
+        a[(0, 2)] = 0.917847165891965;
+        a[(1, 1)] = 0.031418391315215;
+        a[(1, 2)] = 0.467599106573163;
+        a[(2, 2)] = 0.078284436848147;
+        let s = get_scale_na(&a);
+
+        let mut sol = Matrix3::<f64>::zeros();
+        sol[(0, 0)] = 1.413909247943398;
+        sol[(0, 1)] = 0.470923306918821;
+        sol[(0, 2)] = 1.244297682904218;
+        sol[(1, 1)] = 1.031917158757147;
+        sol[(1, 2)] = 0.494009253649905;
+        sol[(2, 2)] = 1.081430213529469;
+
+        const TOLERANCE: [f64; 7] = [
+            1e-9f64, 1e-13f64, 1e-15f64, 1e-15f64, 1e-15f64, 2e-15f64, 1e-15f64,
+        ];
+
+        for (&deg, &tol) in POL_DEG.iter().zip(TOLERANCE.iter()) {
+            let mut mat = a.clone();
+            let _res = pade_pp_f64(&mut mat, deg, s);
+
+            assert!(_res.is_ok());
+            let res = _res.unwrap();
+            // println!("deg: {deg}");
+            // println!("tol: {tol}");
+            // println!("err: {}", err_na(&res, &sol));
+            assert!(err_na(&res, &sol) < tol);
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "oxiblas-backend")]
+    fn test_general_ox() {
+        let mut a = MatBuilder::<f64>::zeros(3, 3);
+        a[(0, 0)] = 4f64;
+        a[(0, 1)] = 2f64;
+        a[(1, 0)] = 1f64;
+        a[(1, 1)] = 4f64;
+        a[(1, 2)] = 1f64;
+        a[(2, 0)] = 1f64;
+        a[(2, 1)] = 1f64;
+        a[(2, 2)] = 4f64;
+
+        let s = get_scale_ox(&a);
+
+        let mut sol = MatBuilder::<f64>::zeros(3, 3);
+        sol[(0, 0)] = 147.8666224463699;
+        sol[(0, 1)] = 183.7651386463682;
+        sol[(0, 2)] = 71.79703239999647;
+        sol[(1, 0)] = 127.7810855231823;
+        sol[(1, 1)] = 183.7651386463682;
+        sol[(1, 2)] = 91.88256932318415;
+        sol[(2, 0)] = 127.7810855231824;
+        sol[(2, 1)] = 163.6796017231806;
+        sol[(2, 2)] = 111.9681062463718;
+
+        const TOLERANCE: [f64; 7] = [
+            5e-5f64, 1e-7f64, 1e-11f64, 1e-12f64, 1e-12f64, 1e-12f64, 1e-12f64,
+        ];
+
+        for (&deg, &tol) in POL_DEG.iter().zip(TOLERANCE.iter()) {
+            let mut mat = a.clone();
+            let _res = pade_pp_f64(&mut mat, deg, s);
+
+            assert!(_res.is_ok());
+            let res = _res.unwrap();
+            // println!("deg: {deg}");
+            // println!("tol: {tol}");
+            // println!("err: {}", err_ox(&res, &sol));
+            assert!(err_ox(&res, &sol) < tol);
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "nalgebra-backend")]
+    fn test_general_na() {
+        let mut a = Matrix3::<f64>::zeros();
+        a[(0, 0)] = 4f64;
+        a[(0, 1)] = 2f64;
+        a[(1, 0)] = 1f64;
+        a[(1, 1)] = 4f64;
+        a[(1, 2)] = 1f64;
+        a[(2, 0)] = 1f64;
+        a[(2, 1)] = 1f64;
+        a[(2, 2)] = 4f64;
+
+        let s = get_scale_na(&a);
+
+        let mut sol = Matrix3::<f64>::zeros();
+        sol[(0, 0)] = 147.8666224463699;
+        sol[(0, 1)] = 183.7651386463682;
+        sol[(0, 2)] = 71.79703239999647;
+        sol[(1, 0)] = 127.7810855231823;
+        sol[(1, 1)] = 183.7651386463682;
+        sol[(1, 2)] = 91.88256932318415;
+        sol[(2, 0)] = 127.7810855231824;
+        sol[(2, 1)] = 163.6796017231806;
+        sol[(2, 2)] = 111.9681062463718;
+
+        const TOLERANCE: [f64; 7] = [
+            5e-5f64, 1e-7f64, 1e-11f64, 1e-12f64, 1e-12f64, 1e-12f64, 1e-12f64,
+        ];
+
+        for (&deg, &tol) in POL_DEG.iter().zip(TOLERANCE.iter()) {
+            let mut mat = a.clone();
+            let _res = pade_pp_f64(&mut mat, deg, s);
+
+            assert!(_res.is_ok());
+            let res = _res.unwrap();
+            // println!("deg: {deg}");
+            // println!("tol: {tol}");
+            // println!("err: {}", err_na(&res, &sol));
+            assert!(err_na(&res, &sol) < tol);
         }
     }
 }
